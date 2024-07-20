@@ -46,17 +46,15 @@ class Cpu:
         self.instruction=self.mem.memory[self.pc]
         self.pc+=1
         try:
-            self.opcode_table[self.instruction]()
+            return self.opcode_table[self.instruction]()
         except KeyError:
-            self.unimplemented_opcode()
+            return self.unimplemented_opcode()
     def __str__(self):
         old_instruction=self.instruction
-        self.instruction=self.mem.memory[self.pc]
         self.get_name=True
         ret_value = "Registers: "+str([f"{i}:{hex(self.registers[i])} " for i in self.registers])+"\nPC: "+hex(self.pc)+"\nSP: "+hex(self.sp)+"\nInstruction: "# + hex(self.instruction) + " "
         old_pc = self.pc
-        self.pc+=1
-        ret_value+=self.opcode_table[self.instruction]()
+        ret_value+= self.tick()
         self.pc = old_pc
         self.get_name=False
         self.instruction=old_instruction
@@ -70,7 +68,6 @@ class Cpu:
         No operation. Do nothing for one machine cycle. Increment the PC afterwards
         '''
         if self.get_name: return "NOP"
-        self.pc+=1
     def STOP(self):
         '''
         0x10: STOP
@@ -93,7 +90,6 @@ class Cpu:
         '''
         if self.get_name: return "HALT"
         #not implemented yet
-        self.pc+=1
     def empty_opcode(self):
         '''
         This opcode doesn't map to any instruction, so if this is the next opcode, something has gone wrong
@@ -104,7 +100,6 @@ class Cpu:
         if self.get_name: return "unimpl"
         print("Oops, haven't got around to implementing this opcode yet")
         #for now, let's skip to the next instruction
-        self.pc+=1
     #endregion
     #region LD_8
     def LD_8(self):
@@ -115,7 +110,7 @@ class Cpu:
         try:
             return self.ld_8_table[self.instruction]()
         except KeyError:
-            self.unimplemented_opcode()
+            return self.unimplemented_opcode()
     def ld_8_n8(self):
         '''
         0x06 (B), 0x0E (C), 0x16 (D), 0x1E (E), 0x26 (H), 0x2E (L), 0x3E (A): LD_8 r8, n8
@@ -132,9 +127,9 @@ class Cpu:
         This function triages the different PC change instructions
         '''
         try:
-             return self.changes_pc_table[self.instruction]()
+            return self.changes_pc_table[self.instruction]()
         except KeyError:
-            self.unimplemented_opcode()
+            return self.unimplemented_opcode()
     def jp_a16(self):
         '''
         0xC3: JP a16
