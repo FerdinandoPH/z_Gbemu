@@ -54,9 +54,10 @@ class Cpu:
         self.instruction=self.mem.memory[self.pc]
         self.get_name=True
         ret_value = "Registers: "+str([f"{i}:{hex(self.registers[i])} " for i in self.registers])+"\nPC: "+hex(self.pc)+"\nSP: "+hex(self.sp)+"\nInstruction: "# + hex(self.instruction) + " "
+        old_pc = self.pc
         self.pc+=1
         ret_value+=self.opcode_table[self.instruction]()
-        self.pc-=1
+        self.pc = old_pc
         self.get_name=False
         self.instruction=old_instruction
         return ret_value
