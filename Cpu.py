@@ -97,7 +97,7 @@ class Cpu:
         if self.debug_level<2 or self.get_name: return "???"
         self.running=False
     def unimplemented_opcode(self):
-        if self.get_name: return "unimpl"
+        if self.get_name: return "unimpl ("+hex(self.instruction)+")"
         print("Oops, haven't got around to implementing this opcode yet")
         #for now, let's skip to the next instruction
     #endregion
