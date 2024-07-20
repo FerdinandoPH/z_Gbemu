@@ -1,7 +1,8 @@
 from Memory import Memory
+from miscutils import Reg_dict
 class Cpu:
     def __init__(self, memory, debug_level=0):
-        self.registers= {'A':0, 'B':0, 'C':0, 'D':0, 'E':0, 'F':0, 'H':0, 'L':0}
+        self.registers= Reg_dict([("A",0),("F",0),("B",0),("C",0),("D",0),("E",0),("H",0),("L",0),("AF",0),("BC",0),("DE",0),("HL",0)])
         self.pc = 0x100
         self.sp = 0xFEEE
         self.instruction = 0
@@ -139,7 +140,7 @@ class Cpu:
         Jump to a 16-bit immediate address
         3 bytes, 4 cycles, no flags
         '''
-        if self.get_name: return "JP "+hex(self.mem.memory[self.pc+1] << 8 | self.mem.memory[self.pc])
+        if self.get_name: return "JP #"+hex(self.mem.memory[self.pc+1] << 8 | self.mem.memory[self.pc])
         self.pc = self.mem.memory[self.pc+1] << 8 | self.mem.memory[self.pc]
     #endregion
 

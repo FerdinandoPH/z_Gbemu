@@ -1,8 +1,9 @@
-# from typing import Any
 
-
-# class Mod_int :
+# class Mod_int (int) :
+#     def __new__(cls, value, mod):
+#         return super(Mod_int, cls).__new__(cls, value % mod)
 #     def __init__ (self, value, mod):
+#         super().__init__()
 #         self.value = value % mod
 #         self.mod = mod
 #     def __add__(self, other):
@@ -62,3 +63,35 @@
 #         return self.value
 #     def __float__(self):
 #         return float(self.value)
+#     def __index__(self):
+#         return self.value
+    
+class Reg_dict(dict):
+    def __getitem__(self, key):
+        if key in ["AF", "BC", "DE", "HL"]:
+            if key == "AF":
+                return (super().__getitem__('A') << 8) | super().__getitem__('F')
+            elif key == "BC":
+                return (super().__getitem__('B') << 8) | super().__getitem__('C')
+            elif key == "DE":
+                return (super().__getitem__('D') << 8) | super().__getitem__('E')
+            elif key == "HL":
+                return (super().__getitem__('H') << 8) | super().__getitem__('L')
+        return super().__getitem__(key)
+
+    def __setitem__(self, key, value):
+        if key in ["AF", "BC", "DE", "HL"]:
+            if key == "AF":
+                super().__setitem__('A', value >> 8)
+                super().__setitem__('F', value & 0xFF)
+            elif key == "BC":
+                super().__setitem__('B', value >> 8)
+                super().__setitem__('C', value & 0xFF)
+            elif key == "DE":
+                super().__setitem__('D', value >> 8)
+                super().__setitem__('E', value & 0xFF)
+            elif key == "HL":
+                super().__setitem__('H', value >> 8)
+                super().__setitem__('L', value & 0xFF)
+        else:
+            super().__setitem__(key, value)

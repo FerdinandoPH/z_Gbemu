@@ -17,8 +17,8 @@ def parse_arguments():
     parser.add_argument('rom', type=str, help='Path to the ROM file', default=get_rom_tk(), nargs="?")
     return parser.parse_args()
 if __name__ == '__main__':
-    from EmulatorCore import init
+    from EmulatorCore import emu_init
     os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = "hide"
     args = parse_arguments()
     print(args.rom)
-    init(args)
+    emu_init(args)
