@@ -9,7 +9,7 @@ class Memory:
             self.memory[mem_offset:mem_offset+length] = f.read(length)
     def load_bios(self, path):
         self.load_rom(path,0,0,0x100)
-    def dump(self):
+    def show_memory(self):
         with open("gb_dump.hexd", 'wb') as f:
             f.write(self.memory)
         os.system(os.path.dirname(os.path.realpath(__file__))+"\\gb_dump.hexd")

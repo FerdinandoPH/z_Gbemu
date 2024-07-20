@@ -63,7 +63,7 @@ def main_loop(args):
                 elif answer[0] == 'i':
                     pass #Add breakpoint here
                 elif answer[0]=='m':
-                    mem.dump()
+                    mem.show_memory()
                 elif answer[0]=='p':
                     print(cpu)
                 elif answer[0]=='b':
