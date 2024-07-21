@@ -52,11 +52,13 @@ def main_loop(args):
                 elif answer[0]=='q':
                     exit=True
                     cpu.running=False
+                    print("Quitting...")
                 elif answer[0]=='c':
                     exit=True
                     debug_level=1
                 elif answer[0]=='r':
                     exit=True
+                    print("Resetting...")
                     init(args)
                 elif answer[0]=='s':
                     exit=True

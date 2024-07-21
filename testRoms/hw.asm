@@ -15,4 +15,8 @@ EntryPoint:
     ld h, $5
     ld l, $6
     ld a, $0
+    ld a, b
+    ld l, $50
+    ld h, $01
+    ld a, [HLI]
     jp EntryPoint

@@ -95,3 +95,30 @@ class Reg_dict(dict):
                 super().__setitem__('L', value & 0xFF)
         else:
             super().__setitem__(key, value)
+class Flags_dict(dict):
+    def __init__(self,start_dict,regs:dict):
+        super().__init__(start_dict)
+        self.regs=regs
+    def __getitem__(self, key):
+        if key in ["Z", "N", "H", "C"]:
+            if key == "Z":
+                return (self.regs["F"] & 0x80) >> 7
+            elif key == "N":
+                return (self.regs["F"] & 0x40) >> 6
+            elif key == "H":
+                return (self.regs["F"] & 0x20) >> 5
+            else:
+                return (self.regs["F"] & 0x10) >> 4
+        return super().__getitem__(key)
+    def __setitem__(self, key, value):
+        if key in ["Z", "N", "H", "C"]:
+            if key == "Z":
+                self.regs["F"] = (self.regs["F"] & 0x7F) | (value << 7)
+            elif key == "N":
+                self.regs["F"] = (self.regs["F"] & 0xBF) | (value << 6)
+            elif key == "H":
+                self.regs["F"] = (self.regs["F"] & 0xDF) | (value << 5)
+            else:
+                self.regs["F"] = (self.regs["F"] & 0xEF) | (value << 4)
+        else:
+            super().__setitem__(key, value)
