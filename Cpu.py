@@ -172,14 +172,16 @@ class Cpu:
             src = self.mem.memory[self.pc]
             self.add_to_pc = 1
         elif src == "a16":
-            src = self.mem.memory[self.pc] << 8 | self.mem.memory[self.pc+1]
+            src = self.mem.memory[self.pc+1] << 8 | self.mem.memory[self.pc]
             self.add_to_pc = 2
-        if self.get_name: return self.ld_8_r8_mem_table["dest"][self.instruction]+", ["+("$FF00+"if self.instruction in {0xF0,0xF2} else "")+src+("+" if self.instruction == 0x2A else "-" if self.instruction == 0x3A else "")+"]"
-        if not is_imm:
+        if self.get_name: return self.ld_8_r8_mem_table["dest"][self.instruction]+", ["+("FF00+"if self.instruction in {0xF0,0xF2} else "")+(hex(src) if is_imm else src)+("+" if self.instruction == 0x2A else "-" if self.instruction == 0x3A else "")+"]"
+        if is_imm:
+            src = self.mem.memory[src]
+        else:
             src = self.mem.memory[self.registers[src]]
         if self.instruction in {0xF0, 0xF2}: src = 0xFF00 + src
         self.registers[self.ld_8_r8_mem_table["dest"][self.instruction]] = src
-        if self.instruction in {0x2A, 0x3A}: self.registers[self.ld_8_r8_mem_table["src"][self.instruction]] = (self.registers[self.ld_8_r8_mem_table["src"][self.instruction]]+ (1 if self.instruction == 0x2A else -1)) % 0x10000
+        if self.instruction in {0x2A, 0x3A}: self.registers["HL"] = (self.registers["HL"]+ (1 if self.instruction == 0x2A else -1)) % 0x10000
     #endregion
     #region pc_change
     def pc_change(self):
