@@ -81,6 +81,9 @@ class Reg_dict(dict):
 
     def __setitem__(self, key, value):
         if key in ["AF", "BC", "DE", "HL"]:
+            if value not in range(0, 0x10000):
+                print(f"OV: {key} ({hex(value)})")
+                value = value % 0x10000
             if key == "AF":
                 super().__setitem__('A', value >> 8)
                 super().__setitem__('F', value & 0xFF)
@@ -94,9 +97,12 @@ class Reg_dict(dict):
                 super().__setitem__('H', value >> 8)
                 super().__setitem__('L', value & 0xFF)
         else:
+            if value not in range(0, 0x100):
+                print(f"OV: {key} ({hex(value)})")
+                value = value % 0x100
             super().__setitem__(key, value)
 class Flags_dict(dict):
-    def __init__(self,start_dict,regs:dict):
+    def __init__(self,start_dict,regs:Reg_dict):
         super().__init__(start_dict)
         self.regs=regs
     def __getitem__(self, key):
