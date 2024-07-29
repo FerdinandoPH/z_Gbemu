@@ -29,11 +29,14 @@ EntryPoint:
     ld h, $01
     ld c,h
     ld l, $3
+    ld a, $2
+    inc BC
+    ld h, $FF
+    inc [HL]
     call miniFunc
     jr inicio
 miniFunc:
-    ld a, [hld]
-    ld a, l
-    cp a, $0
+    dec a
+    cp a, $FF
     jp nz, miniFunc
     ret
