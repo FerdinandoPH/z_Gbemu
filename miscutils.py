@@ -100,6 +100,8 @@ class Reg_dict(dict):
             if value not in range(0, 0x100):
                 print(f"OV: {key} ({hex(value)})")
                 value = value % 0x100
+            if key == "F":
+                value = value & 0xF0
             super().__setitem__(key, value)
 class Flags_dict(dict):
     def __init__(self,start_dict,regs:Reg_dict):

@@ -1,21 +1,31 @@
 from Cpu import Cpu
 from Memory import Memory
+from Timers import Timers
+import time
 ctrl_c_counter = 0
+def hex(num):
+    if num>=0:
+        return "0x"+format(num, 'X')
+    return "-0x"+format(-num, 'X')
 def emu_init(args):
     global breakpoints
     breakpoints={"PC":set(), "OPCODE":set(), "MEM_WATCH":{}, "REG_WATCH":{}}
     init(args)
 def init(args):
-    global cpu, mem, debug_level
+    global cpu, mem, debug_level, timer
     mem = Memory(0x10000)
     debug_level = 0
     mem.load_rom(args.rom)
     cpu = Cpu(mem)
+    timer = Timers(mem)
     main_loop(args)
 def main_loop(args):
-    global cpu, mem, debug_level, breakpoints, ctrl_c_counter
-    while cpu.running:
+    global cpu, mem, debug_level, breakpoints, ctrl_c_counter, timer
+    while cpu.state != "QUIT":
         try:
+            if cpu.IME and cpu.state != "STOPPED":
+                if cpu.IME:
+                    cpu.check_interrupts(debug_level)
             if cpu.pc in breakpoints["PC"]:
                 debug_level=0
                 print("Breakpoint hit at PC: "+hex(cpu.pc))
@@ -32,6 +42,7 @@ def main_loop(args):
                     print("Regwatch triggered at register: "+reg,", now the value is: "+hex(cpu.registers[reg]))
             if debug_level<=0:
                 exit=False
+                print(timer)
                 print(cpu)
                 #print("Debug menu")
                 while not exit:
@@ -52,9 +63,10 @@ def main_loop(args):
                         print("d: Delete breakpoint")
                         print("w: See all breakpoints")
                         print("x: Clear all breakpoints")
+                        print("t: See timers")
                     elif answer[0]=='q':
                         exit=True
-                        cpu.running=False
+                        cpu.state="QUIT"
                         print("Quitting...")
                     elif answer[0]=='c':
                         exit=True
@@ -155,12 +167,21 @@ def main_loop(args):
                                 print(dbr_help)
                         else: print(dbr_help)
                     elif answer[0] == 'w':
-                        print("Breakpoints:")
-                        print(breakpoints)
+                        print("Breakpoints: {",end = " ")
+                        print("PC:", [hex(i) for i in breakpoints["PC"]], end = ", ")
+                        print("OPCODE:", [hex(i) for i in breakpoints["OPCODE"]], end = ", ")
+                        print("MEM_WATCH:", [f"{hex(i)} {breakpoints['MEM_WATCH'][i][0]} {breakpoints['MEM_WATCH'][i][1]}" for i in breakpoints["MEM_WATCH"]], end = ", ")
+                        print("REG_WATCH:", [f"{i} {breakpoints['REG_WATCH'][i][0]} {breakpoints['REG_WATCH'][i][1]}" for i in breakpoints["REG_WATCH"]], end = " ")
+                        print("}")
                     elif answer[0] == 'x':
                         print("Clearing all breakpoints")
                         breakpoints={"PC":set(), "OPCODE":set(), "MEM_WATCH":{}, "REG_WATCH":{}}
-            cpu.tick()
+                    elif answer[0] == 't':
+                        print(timer)
+            if cpu.state == "RUNNING":
+                cpu.tick()
+            if cpu.state != "STOPPED":
+                timer.tick(cpu.cycles)
         except KeyboardInterrupt as e:
             print("Ctrl+C detected")
             debug_level=0

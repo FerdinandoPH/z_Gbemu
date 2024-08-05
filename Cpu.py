@@ -13,13 +13,18 @@ class Cpu:
         self.instruction = 0
         self.get_name=False
         self.mem= memory
-        self.running=True
-        self.add_to_sp = 0
+        self.state="RUNNING"
         self.cycles = 0 #unused for now
         self.in_prefix = False
+        self.halt_bug = False
         self.IME = False
         self.IME_pending = 0
         self.flag_nomenclature = {"Z": "bool(self.flags[\"Z\"])", "N": "bool(self.flags[\"N\"])", "H": "bool(self.flags[\"H\"])", "C": "bool(self.flags[\"C\"])", "NZ": "not bool(self.flags[\"Z\"])", "NC": "not bool(self.flags[\"C\"])", "NN": "not bool(self.flags[\"N\"])", "NH": "not bool(self.flags[\"H\"])", "True": "True", "False": "False"}
+        self.int_addresses =[0x40, 0x48, 0x50, 0x58, 0x60]
+        #region cycles
+        self.cycles_table = {**{i:1 for i in {0x00,0x04,0x05,0x07,0x0C,0x0D,0x0F,0x10,0x14,0x15,0x17,0x1C,0x1D,0x1F,0x24,0x25,0x27,0x2C,0x2D,0x2F,0x37,0x3C,0x3D,0x3F,0x40,0x41,0x42,0x43,0x44,0x45,0x47,0x48,0x49,0x4A,0x4B,0x4C,0x4D,0x4F,0x50,0x51,0x52,0x53,0x54,0x55,0x57,0x58,0x59,0x5A,0x5B,0x5C,0x5D,0x5F,0x60,0x61,0x62,0x63,0x64,0x65,0x67,0x68,0x69,0x6A,0x6B,0x6C,0x6D,0x6F,0x76,0x78,0x79,0x7A,0x7B,0x7C,0x7D,0x7F,0x80,0x81,0x82,0x83,0x84,0x85,0x87,0x88,0x89,0x8A,0x8B,0x8C,0x8D,0x8F,0x90,0x91,0x92,0x93,0x94,0x95,0x97,0x98,0x99,0x9A,0x9B,0x9C,0x9D,0x9F,0xA0,0xA1,0xA2,0xA3,0xA4,0xA5,0xA7,0xA8,0xA9,0xAA,0xAB,0xAC,0xAD,0xAF,0xB0,0xB1,0xB2,0xB3,0xB4,0xB5,0xB7,0xB8,0xB9,0xBA,0xBB,0xBC,0xBD,0xBF,0xCB,0xD3,0xDB,0xDD,0xE3,0xE4,0xE9,0xEB,0xEC,0xED,0xF3,0xF4,0xFB,0xFC,0xFD}},**{i:2 for i in {0x02,0x03,0x06,0x09,0x0A,0x0B,0x0E,0x12,0x13,0x16,0x19,0x1A,0x1B,0x1E,0x20,0x22,0x23,0x26,0x28,0x29,0x2A,0x2B,0x2E,0x30,0x32,0x33,0x38,0x39,0x3A,0x3B,0x3E,0x46,0x4E,0x56,0x5E,0x66,0x6E,0x70,0x71,0x72,0x73,0x74,0x75,0x77,0x7E,0x86,0x8E,0x96,0x9E,0xA6,0xAE,0xB6,0xBE,0xC0,0xC6,0xC8,0xCE,0xD0,0xD6,0xD8,0xDE,0xE2,0xE6,0xEE,0xF2,0xF6,0xF9,0xFE}},**{i:3 for i in {0x01,0x11,0x18,0x21,0x31,0x34,0x35,0x36,0xC1,0xC2,0xC4,0xCA,0xCC,0xD1,0xD2,0xD4,0xDA,0xDC,0xE0,0xE1,0xF0,0xF1,0xF8}},**{i:4 for i in {0xC3,0xC5,0xC7,0xC9,0xCF,0xD5,0xD7,0xD9,0xDF,0xE5,0xE7,0xE8,0xEA,0xEF,0xF5,0xF7,0xFA,0xFF}},**{i:5 for i in {0x08}},**{i:6 for i in {0xCD}}}
+        self.prefix_cycles_table = {**{i:2 for i in {0x00,0x01,0x02,0x03,0x04,0x05,0x07,0x08,0x09,0x0A,0x0B,0x0C,0x0D,0x0F,0x10,0x11,0x12,0x13,0x14,0x15,0x17,0x18,0x19,0x1A,0x1B,0x1C,0x1D,0x1F,0x20,0x21,0x22,0x23,0x24,0x25,0x27,0x28,0x29,0x2A,0x2B,0x2C,0x2D,0x2F,0x30,0x31,0x32,0x33,0x34,0x35,0x37,0x38,0x39,0x3A,0x3B,0x3C,0x3D,0x3F,0x40,0x41,0x42,0x43,0x44,0x45,0x47,0x48,0x49,0x4A,0x4B,0x4C,0x4D,0x4F,0x50,0x51,0x52,0x53,0x54,0x55,0x57,0x58,0x59,0x5A,0x5B,0x5C,0x5D,0x5F,0x60,0x61,0x62,0x63,0x64,0x65,0x67,0x68,0x69,0x6A,0x6B,0x6C,0x6D,0x6F,0x70,0x71,0x72,0x73,0x74,0x75,0x77,0x78,0x79,0x7A,0x7B,0x7C,0x7D,0x7F,0x80,0x81,0x82,0x83,0x84,0x85,0x87,0x88,0x89,0x8A,0x8B,0x8C,0x8D,0x8F,0x90,0x91,0x92,0x93,0x94,0x95,0x97,0x98,0x99,0x9A,0x9B,0x9C,0x9D,0x9F,0xA0,0xA1,0xA2,0xA3,0xA4,0xA5,0xA7,0xA8,0xA9,0xAA,0xAB,0xAC,0xAD,0xAF,0xB0,0xB1,0xB2,0xB3,0xB4,0xB5,0xB7,0xB8,0xB9,0xBA,0xBB,0xBC,0xBD,0xBF,0xC0,0xC1,0xC2,0xC3,0xC4,0xC5,0xC7,0xC8,0xC9,0xCA,0xCB,0xCC,0xCD,0xCF,0xD0,0xD1,0xD2,0xD3,0xD4,0xD5,0xD7,0xD8,0xD9,0xDA,0xDB,0xDC,0xDD,0xDF,0xE0,0xE1,0xE2,0xE3,0xE4,0xE5,0xE7,0xE8,0xE9,0xEA,0xEB,0xEC,0xED,0xEF,0xF0,0xF1,0xF2,0xF3,0xF4,0xF5,0xF7,0xF8,0xF9,0xFA,0xFB,0xFC,0xFD,0xFF}},**{i:3 for i in {0x46,0x4E,0x56,0x5E,0x66,0x6E,0x76,0x7E}},**{i:4 for i in {0x06,0x0E,0x16,0x1E,0x26,0x2E,0x36,0x3E,0x86,0x8E,0x96,0x9E,0xA6,0xAE,0xB6,0xBE,0xC6,0xCE,0xD6,0xDE,0xE6,0xEE,0xF6,0xFE}}}
+        #endregion
         #region opcode_dict
         self.opcode_table={0x0: self.NOP, 0x10: self.STOP, 0x37: self.SCF, 0x2F: self.CPL, 0x3F:self.CCF, 0x27:self.DAA, 0xCB:self.cb_prefix, **{i:self.di_ei for i in {0xF3, 0xFB}}, **{i:self.LD_8 for i in set(range(2,64,4)) | set(range(0x40,0x80)) - {0x76} | {0xE0, 0xE2, 0xEA, 0xF0, 0xF2, 0xFA}}, **{i:self.pc_change for i in {0x18, 0x20, 0x28, 0x30, 0x38} | {0xC2, 0xC3, 0xCA, 0xD2, 0xDA} | {0xC4, 0xCC, 0xCD, 0xD4, 0xDC} | {0xC0, 0xC8, 0xC9, 0xD0, 0xD8, 0xD9} | set(range(0xC7, 0x100, 0x8))}, 0x76:self.HALT, **{i:self.empty_opcode for i in {0xD3, 0xDB, 0xDD, 0xE3, 0xE4, 0xEB, 0xEC, 0xED, 0xF4, 0xFC, 0xFD}}, **{i:self.CP for i in set(range(0xB8,0xC0)) | {0xFE}}, **{k:self.inc_dec  for i in range(0x03, 0x43, 0x8) for k in range(i,i+3)}, **{i:self.ld_16 for i in set(range(0x1,0x41,0x10)) | {0x8} | {0xF8, 0xF9}}, **{k:self.push_pop for i in range(0xC1, 0x100,0x10) for k in range(i, i+6, 5)}, **{i:self.shift_rot for i in set(range(0x07,0x20,0x8))}, **{i:self.add_sub for i in set(range(0x80, 0xA0)) | {0xC6, 0xCE}}, **{i:self.add_16 for i in set(range(0x9,0x49, 0x10))}, **{i:self.logic_ops for i in set(range(0xA0,0xB8)) | {0xE6, 0xEE, 0xF6}}}
         self.prefix_opcode_table={**{i:self.shift_rot for i in set(range(0x0,0x40))-set(range(0x30,0x38))}, **{i:self.swap for i in set(range(0x30,0x38))}, **{i:self.bit for i in set(range(0x40,0x80))}, **{i:self.res_set for i in set(range(0x80,0x100))}}
@@ -90,31 +95,55 @@ class Cpu:
         self.bit_table = {"src":{**{i:"B" for i in set(range(0x40, 0x80, 0x8))}, **{i:"C" for i in set(range(0x41, 0x81, 0x8))}, **{i:"D" for i in set(range(0x42, 0x82, 0x8))}, **{i:"E" for i in set(range(0x43, 0x83, 0x8))}, **{i:"H" for i in set(range(0x44, 0x84, 0x8))}, **{i:"L" for i in set(range(0x45, 0x85, 0x8))}, **{i:"[HL]" for i in set(range(0x46, 0x86, 0x8))}}, "bit":{**{i:0 for i in range(0x40, 0x48)}, **{i:1 for i in range(0x48, 0x50)}, **{i:2 for i in range(0x50, 0x58)}, **{i:3 for i in range(0x58, 0x60)}, **{i:4 for i in range(0x60, 0x68)}, **{i:5 for i in range(0x68, 0x70)}, **{i:6 for i in range(0x70, 0x78)}, **{i:7 for i in range(0x78, 0x80)}}}
         #endregion
         #region res_set_dict
-        self.res_set_table = {"src":{**{i:"B" for i in set(range(0x80, 0x100, 0x8))}, **{i:"C" for i in set(range(0x81, 0x101, 0x8))}, **{i:"D" for i in set(range(0x82, 0x102, 0x8))}, **{i:"E" for i in set(range(0x83, 0x103, 0x8))}, **{i:"H" for i in set(range(0x84, 0x104, 0x8))}, **{i:"L" for i in set(range(0x85, 0x105, 0x8))}, **{i:"[HL]" for i in set(range(0x86, 0x106, 0x8))}, **{i:"A" for i in set(range(0x87, 0x107, 0x8))}}, "bit":{**{i:0 for i in set(range(0x80, 0x88)) | set(range(0xC0, 0xC8))}, **{i:1 for i in set(range(0x88, 0x90)) | set(range(0xC8, 0xD0))}, **{i:2 for i in set(range(0x90, 0x98)) | set(range(0xD0, 0xD8))}, **{i:3 for i in set(range(0x98, 0xA0)) | set(range(0xD8, 0xE0))}, **{i:4 for i in set(range(0xA0, 0xA8)) | set(range(0xE0, 0xE8))}, **{i:5 for i in set(range(0xA8, 0xB0)) | set(range(0xE8, 0xF0))}, **{i:6 for i in set(range(0xB0, 0xB8)) | set(range(0xF0, 0xF8))}, **{i:7 for i in set(range(0xB8, 0xC0)) | set(range(0xF8, 0x100))}}, "name":{**{i:"RES" for i in set(range(0x80, 0xC0))}, **{i:"SET" for i in set(range(0xC0, 0x100))}}}
+        self.res_set_table = {"reg":{**{i:"B" for i in set(range(0x80, 0x100, 0x8))}, **{i:"C" for i in set(range(0x81, 0x101, 0x8))}, **{i:"D" for i in set(range(0x82, 0x102, 0x8))}, **{i:"E" for i in set(range(0x83, 0x103, 0x8))}, **{i:"H" for i in set(range(0x84, 0x104, 0x8))}, **{i:"L" for i in set(range(0x85, 0x105, 0x8))}, **{i:"[HL]" for i in set(range(0x86, 0x106, 0x8))}, **{i:"A" for i in set(range(0x87, 0x107, 0x8))}}, "bit":{**{i:0 for i in set(range(0x80, 0x88)) | set(range(0xC0, 0xC8))}, **{i:1 for i in set(range(0x88, 0x90)) | set(range(0xC8, 0xD0))}, **{i:2 for i in set(range(0x90, 0x98)) | set(range(0xD0, 0xD8))}, **{i:3 for i in set(range(0x98, 0xA0)) | set(range(0xD8, 0xE0))}, **{i:4 for i in set(range(0xA0, 0xA8)) | set(range(0xE0, 0xE8))}, **{i:5 for i in set(range(0xA8, 0xB0)) | set(range(0xE8, 0xF0))}, **{i:6 for i in set(range(0xB0, 0xB8)) | set(range(0xF0, 0xF8))}, **{i:7 for i in set(range(0xB8, 0xC0)) | set(range(0xF8, 0x100))}}, "name":{**{i:"RES" for i in set(range(0x80, 0xC0))}, **{i:"SET" for i in set(range(0xC0, 0x100))}}}
     def tick(self):
-        if self.running:
-            if not self.get_name:
-                if self.IME_pending > 0:
-                    self.IME_pending -= 1
-                    if self.IME_pending <= 0: self.IME = True
-            self.instruction=self.mem[self.pc]
-            self.pc = (self.pc + 1) % 0x10000 # For some reason, the PC is incremented before the instruction is executed. This is important for relative jumps
-            try:
-                ret_value =  self.opcode_table[self.instruction]()
-            except KeyError:
-                ret_value =  self.unimplemented_opcode()
-            return ret_value
+        if not self.get_name:
+            self.cycles = 0
+        self.instruction=self.mem[self.pc]
+        self.pc = (self.pc + 1) % 0x10000 # For some reason, the PC is incremented before the instruction is executed. This is important for relative jumps
+        if self.halt_bug:
+            self.halt_bug = False
+            self.pc = (self.pc - 1) % 0x10000
+        try:
+            ret_value =  self.opcode_table[self.instruction]()
+        except KeyError:
+            ret_value =  self.unimplemented_opcode()
+        if not self.get_name:
+            if self.IME_pending > 0:
+                self.IME_pending -= 1
+                if self.IME_pending <= 0: self.IME = True
+            self.cycles += self.cycles_table[self.instruction] if not self.in_prefix else self.prefix_cycles_table[self.instruction]
+        self.in_prefix = False
+        return ret_value
 
     def __str__(self):
         old_instruction=self.instruction
         self.get_name=True
-        ret_value = "Registers: "+str([f"{i}:{hex(self.registers[i])} " for i in self.registers])+"\nFlags:"+str([f"{i}:{self.flags[i]}" for i in self.flags])+"\nPC: "+hex(self.pc)+"  SP: "+hex(self.sp)+"\nInstruction: "# + hex(self.instruction) + " "
+        ret_value = "State: "+self.state+"\nRegisters: "+str([f"{i}:{hex(self.registers[i])} " for i in self.registers])+"\nFlags:"+str([f"{i}:{self.flags[i]}" for i in self.flags])+", IME: "+str(self.IME)+"\nPC: "+hex(self.pc)+"  SP: "+hex(self.sp)+"\nInstruction: "# + hex(self.instruction) + " "
+        #ret_value = f"State: {self.state}\nRegisters: [{','.join([f'{i}:{hex(self.registers[i])} ' for i in self.registers])}]\nFlags: [{','.join([f'{i}:{self.flags[i]}' for i in self.flags])}], IME: {self.IME}\nPC: {hex(self.pc)}  SP: {hex(self.sp)}\nInstruction: "# + hex(self.instruction) + " "
         old_pc = self.pc
-        ret_value+= self.tick()
+        if self.state == "RUNNING": ret_value+= self.tick()
         self.pc = old_pc
         self.get_name=False
         self.instruction=old_instruction
         return ret_value
+    def check_interrupts(self, debug_level):
+        ie_flag = self.mem[0xFFFF]
+        if_flag = self.mem[0xFF0F]
+        if ie_flag == 0 or if_flag == 0: return
+        for i in range(5, -1, -1):
+            if (ie_flag & (1<<i)) and (if_flag & (1<<i)):
+                if debug_level <=0: print(f"Interrupt {i} triggered")
+                self.IME = False
+                self.mem[0xFF0F] &= ~(1<<i)
+                self.sp = (self.sp - 2) % 0x10000
+                self.mem[self.sp] = self.pc >> 8
+                self.mem[self.sp+1] = self.pc & 0xFF
+                if self.state[-1] != "X":
+                    self.pc = self.int_addresses[i]
+                self.state = "RUNNING"
+                return
+
     #region opcodes
     #region misc
     def cb_prefix(self):
@@ -128,7 +157,6 @@ class Cpu:
             ret_value = self.prefix_opcode_table[self.instruction]()
         except KeyError:
             ret_value = self.unimplemented_opcode()
-        self.in_prefix = False
         return ret_value
     def NOP(self):
         '''
@@ -144,7 +172,8 @@ class Cpu:
         Halt CPU and LCD until button press. Increment the PC afterwards
         '''
         if self.get_name: return "STOP"
-        #not implemented yet
+        self.state = "STOPPED"
+        self.mem[0xFF04] = 0
         self.pc = (self.pc + 1) % 0x10000
     def HALT(self):
         '''
@@ -158,6 +187,14 @@ class Cpu:
         If there is an interrupt pending, the CPU will continue execution, but it will read the next byte twice due to a bug
         '''
         if self.get_name: return "HALT"
+        if self.IME:
+            self.state = "HALTED"
+        else:
+            if self.mem[0xFFFF] & self.mem[0xFF0F] == 0:
+                self.state = "HALTEDX"
+            else:
+                self.halt_bug = True
+        
         #not implemented yet
     def SCF(self):
         '''
@@ -221,10 +258,11 @@ class Cpu:
         '''
         if self.get_name: return "???"
         print("Empty opcode: "+hex(self.instruction))
-        self.running=False
+        self.state="QUIT"
     def unimplemented_opcode(self):
         if self.get_name: return "unimpl ("+hex(self.instruction)+")"
-        print("Oops, haven't got around to implementing this opcode yet")
+        print(f"Huh? {hex(self.instruction)} should be implemented. Something went wrong")
+        self.state = "QUIT"
         #for now, let's skip to the next instruction
     def di_ei(self):
         '''
@@ -377,6 +415,7 @@ class Cpu:
         Documentation to be completed
         '''
         new_pc = self.pc_change_table["new_pc"][self.instruction]
+        name = self.pc_change_table["name"][self.instruction]
         if new_pc == "a16":
             new_pc = self.mem[self.pc+1] << 8 | self.mem[self.pc]
             self.pc = (self.pc + 2) % 0x10000
@@ -384,9 +423,9 @@ class Cpu:
             new_pc = self.mem[self.pc]
             if new_pc > 127: new_pc -= 256
             self.pc = (self.pc + 1) % 0x10000
-        if self.get_name: return self.pc_change_table["name"][self.instruction]+((" "+self.pc_change_table["cond"][self.instruction]) if self.pc_change_table["cond"][self.instruction] !="True" else "")+" "+(("$"+("+" if self.pc_change_table["name"][self.instruction] == "JR" and new_pc>=0 else "")+hex(new_pc)) if new_pc != "HL" and self.pc_change_table["name"][self.instruction] !="RET" else "HL" if new_pc == "HL" else "")
+        if self.get_name: return name+((" "+self.pc_change_table["cond"][self.instruction]) if self.pc_change_table["cond"][self.instruction] !="True" else "")+" "+(("$"+("+" if name == "JR" and new_pc>=0 else "")+hex(new_pc)) if new_pc != "HL" and name !="RET" else "HL" if new_pc == "HL" else "")
         if eval(self.flag_nomenclature[self.pc_change_table["cond"][self.instruction]]):
-            if self.pc_change_table["name"][self.instruction] in {"CALL", "RST"}:
+            if name in {"CALL", "RST"}:
                 self.sp = (self.sp - 2) % 0x10000
                 self.mem[self.sp+1] = self.pc >> 8
                 self.mem[self.sp] = self.pc & 0xFF
@@ -395,11 +434,15 @@ class Cpu:
                 self.sp = (self.sp + 2) % 0x10000
             elif new_pc == "HL":
                 new_pc = self.registers["HL"]
-            elif self.pc_change_table["name"][self.instruction] == "JR":
+            elif name == "JR":
                 new_pc = (self.pc + new_pc) % 0x10000
             elif self.instruction == 0xD9: #RETI
-                self.IME_pending = 2
+                self.IME = True
             self.pc = new_pc
+            if self.flag_nomenclature[self.pc_change_table["cond"][self.instruction]] != "True":
+                if name == "CALL": self.cycles += 2
+                elif name == "RET": self.cycles += 3
+                else: self.cycles += 1
     #endregion
     #region math
     def CP(self):
@@ -550,8 +593,8 @@ class Cpu:
         Tests the value of the b th bit in a register or a memory address using the Z flag
         2 byte(s), 2| cycle(s), Flags affected: Z, N (0), H (1)
         '''
-        bit = self.bit_table[self.instruction]
-        reg = self.bit_table[self.instruction]
+        bit = self.bit_table["bit"][self.instruction]
+        reg = self.bit_table["src"][self.instruction]
         if self.get_name: return "BIT "+str(bit)+", "+reg
         if reg == "[HL]": value = self.mem[self.registers["HL"]]
         else: value = self.registers[reg]
@@ -570,6 +613,8 @@ class Cpu:
         else: value = self.registers[reg]
         if name == "SET": value |= 1 << bit
         else: value &= ~(1 << bit)
+        if reg == "[HL]": self.mem[self.registers["HL"]] = value
+        else: self.registers[reg] = value
     #endregion
     #endregion
     #region logic_ops
