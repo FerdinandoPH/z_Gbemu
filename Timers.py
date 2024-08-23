@@ -48,8 +48,10 @@ class Timers:
         self.mem[0xFF07] = value & 0xFF
         self.mem.protected = True
     def tick(self, cycles):
-        self.div += cycles
-        if self.tac["enabled"]:
+        if self.mem.div_changed:
+            self.mem.div_changed = False
+        else: self.div += cycles
+        if self.tac["enabled"] and not self.mem.tima_changed:
             self.sub_tima += cycles
             needed_cycles = self.needed_cycles[self.tac["clock"]]
             if self.sub_tima >= needed_cycles:
@@ -60,5 +62,7 @@ class Timers:
                 else:
                     self.tima += add_to_tima
                 self.sub_tima %= needed_cycles
+        elif self.mem.tima_changed:
+            self.mem.tima_changed = False
     def __str__(self):
         return f"DIV: {hex(self.div)}, TMA: {hex(self.tma)}, TIMA: {hex(self.tima)}, TAC: {self.tac}"
