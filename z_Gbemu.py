@@ -10,7 +10,7 @@ def get_rom_tk():
     file_path = filedialog.askopenfilename()
     root.destroy()
     if not file_path:
-        sys.exit(0)
+        sys.exit()
     return file_path
 def parse_arguments():
     parser = argparse.ArgumentParser(description='GB Emulator')

@@ -1,9 +1,10 @@
+from Memory import Memory
 def hex(num):
     if num>=0:
         return "0x"+format(num, 'X')
     return "-0x"+format(-num, 'X')
 class Timers:
-    def __init__(self, mem):
+    def __init__(self, mem: Memory):
         self.mem = mem
         self.sub_tima = 0
         self.div = 0
@@ -15,18 +16,14 @@ class Timers:
         return self.mem[0xFF04]
     @div.setter
     def div(self, value):
-        self.mem.protected = False
-        self.mem[0xFF04] = value & 0xFF
-        self.mem.protected = True
+        self.mem.write_unprotected(0xFF04, value & 0xFF)
     @property
     def tma(self):
         return self.mem[0xFF06]
 
     @tma.setter
     def tma(self, value):
-        self.mem.protected = False
-        self.mem[0xFF06] = value & 0xFF
-        self.mem.protected = True
+        self.mem.write_unprotected(0xFF06, value & 0xFF)
 
     @property
     def tima(self):
@@ -34,10 +31,7 @@ class Timers:
 
     @tima.setter
     def tima(self, value):
-        self.mem.protected = False
-        self.mem[0xFF05] = value & 0xFF
-        self.mem.protected = True
-
+        self.mem.write_unprotected(0xFF05, value & 0xFF)
     @property
     def tac(self):
         return {"enabled": (self.mem[0xFF07] & 0b100)>>2, "clock": self.mem[0xFF07] & 0b11}

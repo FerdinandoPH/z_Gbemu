@@ -1,13 +1,39 @@
 import pygame, time
 import numpy as np
-class Ui:
+from enum import Enum
+
+class Mode(Enum):
+    HBLANK = 0
+    VBLANK = 1
+    OAM = 2
+    TRANSFER = 3
+class Lcd:
     def __init__(self, mem, scale = 3):
         pygame.init()
-        self.scale = scale
+        self.enabled = False
+        self.window_map_src = 0x9800
+        self.window_enabled = False
+        self.tile_src = 0x8000
+        self.bg_map_src = 0x9800
+        self.sprite_height = 8
+        self.sprite_enabled = False
+        self.bg_window_enabled = True
         self.mem = mem
+        self.mode = Mode.VBLANK
+        self.ly = 0
+        # self.lyc = 0
+        # self.stat = 0
+        # self.scx = 0
+        # self.scy = 0
+        # self.wx = 0
+        # self.wy = 0
+        self.scale = scale
+        self.mem.screen = self
+        self.line_ticks = 0
         self.tiles = {}
         self.gb_colors = [(0x9B, 0xBC, 0x0F),(0x8B, 0xAC, 0x0F),(0x30, 0x62, 0x30),(0x0F, 0x38, 0x0F)]
         self.main_screen = pygame.display.set_mode(((172+144)*scale, (218)*scale))
+        pygame.display.set_caption("zGBEmu")
         self.game_screen = pygame.Surface((160*scale, 144*scale))
         self.debug_screen = pygame.Surface((16*8, 216))
         self.main_screen.fill((255,255,255))
@@ -18,8 +44,43 @@ class Ui:
         self.clock = pygame.time.Clock()
         print("Screen size:", self.main_screen.get_size())
         #time.sleep(3)
-    def generate_bg_palette(self):
+    @property
+    def stat(self):
+        return self.mem[0xFF41]
+    @property
+    def ly(self):
+        return self.mem[0xFF44]
+    @ly.setter
+    def ly(self, value):
+        self.mem.write_unprotected(0xFF44, value & 0xFF)
+    @property
+    def lyc(self):
+        return self.mem[0xFF45]
+    @property
+    def scx(self):
+        return self.mem[0xFF43]
+    @property
+    def scy(self):
+        return self.mem[0xFF42]
+    @property
+    def wx(self):
+        return self.mem[0xFF4B]
+    @property
+    def wy(self):
+        return self.mem[0xFF4A]
+    def tick(self):
         pass
+    def generate_bg_palette(self):
+        palette_table = {0: (0x9B, 0xBC, 0x0F), 1: (0x8B, 0xAC, 0x0F), 2: (0x30, 0x62, 0x30), 3: (0x0F, 0x38, 0x0F)}
+        bgp = self.mem[0xFF47]
+        bg_palette = [palette_table[(bgp & (0b11 << i*2)) >> i*2] for i in range(4)]
+        return bg_palette
+    def generate_obj_palette(self, number):
+        if number not in range(0,2): number = 0
+        palette_table = {0: (0, 0, 0, 0), 1: (0x8B, 0xAC, 0x0F), 2: (0x30, 0x62, 0x30), 3: (0x0F, 0x38, 0x0F)}
+        obp = self.mem[0xFF48+number]
+        obj_palette = [palette_table[(obp & (0b11 << i*2)) >> i*2] for i in range(4)]
+        return obj_palette
     def generate_tiles(self, src = 0x8000, dest = 0x9800):
         tile_arrays = {}
         
@@ -85,7 +146,6 @@ class Ui:
         #self.tiles = self.generate_tiles()
         self.main_screen.blit(self.debug_screen, (171*self.scale, 0))
         pygame.display.flip()
-        return True
     def dbg_update(self):
         
         copy_dbg_screen = pygame.Surface((144, 216))
@@ -110,7 +170,7 @@ class Ui:
         self.debug_screen = pygame.transform.scale(copy_dbg_screen.copy(), (144*self.scale, 216*self.scale))
 
 if __name__ == "__main__":
-    ui = Ui(None)
+    ui = Lcd(None)
     while True:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:

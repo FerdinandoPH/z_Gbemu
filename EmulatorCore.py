@@ -1,9 +1,8 @@
 from Cpu import Cpu
 from Memory import Memory
 from Timers import Timers
-from Ui import Ui
-import time
-import threading, pygame
+from Lcd import Lcd
+import time, threading, pygame
 from traceback import print_exc
 ctrl_c_counter = 0
 def hex(num):
@@ -18,18 +17,23 @@ def init(args):
     global cpu, mem, debug_level, timer, screen, screen_thread, dbg_screen_thread, stop_event
     mem = Memory(0x10000)
     debug_level = 0
-    screen = None
     mem.load_rom(args.rom)
     cpu = Cpu(mem)
     timer = Timers(mem)
     screen_thread = None
     dbg_screen_thread = None
+    screen = Lcd(mem)
+    mem.screen = screen
+    stop_event = threading.Event()
+    screen_thread = threading.Thread(target=screen_render, args=(screen,stop_event), daemon=True)
+    dbg_screen_thread = threading.Thread(target=dbg_screen_render, args=(screen,stop_event), daemon=True)
+    screen_thread.start()
+    dbg_screen_thread.start()
     main_loop(args)
 def main_loop(args):
     global cpu, mem, debug_level, breakpoints, ctrl_c_counter, timer, screen, stop_event, screen_thread, dbg_screen_thread
     start_time = cpu_start_time = timer_start_time = debug_screen_start_time = breakpoint_start_time = 0
     cpu_end_time = timer_end_time = debug_screen_end_time = breakpoint_end_time = 0
-    stop_event = threading.Event()
     breakpoints_enabled = False
     while cpu.state != "QUIT":
         try:
@@ -85,7 +89,7 @@ def main_loop(args):
                             print("d: Delete breakpoint")
                             print("w: See all breakpoints")
                             print("x: Clear all breakpoints")
-                            print("g: Toggle tile debug screen")
+                            #print("g: Toggle tile debug screen")
                             print("t: See timers")
                         elif answer[0]=='q':
                             exit=True
@@ -217,23 +221,18 @@ def main_loop(args):
                             breakpoints_enabled = False
                         elif answer[0] == 't':
                             print(timer)
-                        elif answer[0] == 'g':
-                            if screen_thread is None or not screen_thread.is_alive():
-                                screen = Ui(mem)
-                                stop_event.clear()
-                                screen_thread = threading.Thread(target=screen_render, args=(screen,stop_event), daemon=True)
-                                dbg_screen_thread = threading.Thread(target=dbg_screen_render, args=(screen,stop_event), daemon=True)
-                                screen_thread.start()
-                                dbg_screen_thread.start()
-                                #exit = True
-                                #debug_level=2
-                            else:
-                                stop_event.set()
-                                screen_thread.join()
-                                dbg_screen_thread.join()
-                                screen_thread = None
-                                dbg_screen_thread = None
-                                screen = None
+                        # elif answer[0] == 'g':
+                        #     if screen_thread is None or not screen_thread.is_alive():
+                        #         screen = Lcd(mem)
+                        #         stop_event.clear()
+                        #         screen_thread = threading.Thread(target=screen_render, args=(screen,stop_event), daemon=True)
+                        #         dbg_screen_thread = threading.Thread(target=dbg_screen_render, args=(screen,stop_event), daemon=True)
+                        #         screen_thread.start()
+                        #         dbg_screen_thread.start()
+                        #         #exit = True
+                        #         #debug_level=2
+                        #     else:
+                        #         close_screen()
             start_time = time.perf_counter()
             if cpu.state == "RUNNING":
                 #cpu_start_time = time.perf_counter()
@@ -243,17 +242,11 @@ def main_loop(args):
                 #timer_start_time = time.perf_counter()
                 timer.tick(cpu.cycles)
                 #timer_end_time = time.perf_counter()
-            if screen is not None:
-                for event in pygame.event.get():
-                    if event.type == pygame.QUIT:
-                        stop_event.set()
-                        screen_thread.join()
-                        dbg_screen_thread.join()
-                        screen_thread = None
-                        dbg_screen_thread = None
-                        screen = None
-                        debug_level=0
-                        pygame.display.quit()
+            if mem.dma_active:
+                mem.dma_tick(cpu.cycles)
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    quit()
             
         except KeyboardInterrupt as e:
             print("Ctrl+C detected")
@@ -263,24 +256,28 @@ def main_loop(args):
                 print_exc()
                 print("Exiting...")
                 quit()
-def screen_render(screen: Ui, stop_event):
+def screen_render(screen: Lcd, stop_event):
+    clock = pygame.time.Clock()
     while not stop_event.is_set():
         frame_start = time.perf_counter()
-        if not screen.update():
-            stop_event.set()
+        screen.update()
+        clock.tick(59.7)
         frame_end = time.perf_counter()
         #print("Screen: "+str(frame_end-frame_start))
-def dbg_screen_render(screen: Ui, stop_event):
+def dbg_screen_render(screen: Lcd, stop_event):
     while not stop_event.is_set():
         frame_start = time.perf_counter()
         screen.dbg_update()
         frame_end = time.perf_counter()
         #print("Debug screen: "+str(frame_end-frame_start))
-        time.sleep(max(0, 1/10 - (frame_end - frame_start)))
+        time.sleep(max(0, 1/5 - (frame_end - frame_start)))
 def quit():
-    global cpu, mem, screen_thread, stop_event
+    global screen_thread, stop_event, screen, dbg_screen_thread, debug_level
+    stop_event.set()
+    screen_thread.join()
+    dbg_screen_thread.join()
+    screen = None
+    dbg_screen_thread = None
+    screen_thread = None
     cpu.state = "QUIT"
-    if screen_thread is not None:
-        stop_event.set()
-        screen_thread.join()
-    print("Quitting...")
+    pygame.display.quit()
