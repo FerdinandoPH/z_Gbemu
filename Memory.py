@@ -1,11 +1,12 @@
 
-import os, random, copy, subprocess
+import os, random, copy, subprocess, colorama
 class Memory(bytearray):
     def __init__(self, size=0x10000):
         self.protected=False
         self.div_changed=False
         self.tima_changed=False
         self.dma_active = False
+        self.cpu = None
         self.dma_cycles = 0
         self.dma_progress = 0
         self.screen = None
@@ -35,16 +36,16 @@ class Memory(bytearray):
     def __getitem__(self, key):
         if self.protected:
             if self.dma_active and key not in range(0xFF80,0xFFFF): 
-                print(f"DMA active, read attempt to memory ({hex(key)})")
+                print(colorama.Fore.YELLOW+f"DMA active, read attempt to memory ({hex(key)})"+colorama.Style.RESET_ALL)
                 return 0xFF
         return super().__getitem__(key)
     def __setitem__(self, key, value):
         if self.protected:
             if key in range(0,0x8000): 
-                print(f"ROM write attempt ({hex(key)})")
+                print(colorama.Fore.YELLOW+f"ROM write attempt ({hex(key)}) at {hex(self.cpu.pc)}"+colorama.Style.RESET_ALL)
                 return
             if self.dma_active and key not in range(0xFF80,0xFFFF): 
-                print(f"DMA active, write attempt to memory ({hex(key)})")
+                print(colorama.Fore.YELLOW+f"DMA active, write attempt to memory ({hex(key)}) at {hex(self.cpu.pc)}"+colorama.Style.RESET_ALL)
                 return
             match key:
                 case 0xFF00: value = (0x3 << 6) | ((value & 0x30)>>4) | (self[0xFF00] & 0x0F) # Joypad
@@ -54,7 +55,7 @@ class Memory(bytearray):
                 case 0xFF05: self.tima_changed=True # TIMA
                 case 0xFF46: # OAM DMA
                     if value not in range(0,0xE0):
-                        print(f"Invalid OAM DMA source ({hex(value)})")
+                        print(colorama.Fore.YELLOW+f"Invalid OAM DMA source ({hex(value)}) at {hex(self.cpu.pc)}"+colorama.Style.RESET_ALL)
                         return
                     self.dma_active = True
                     base_addr = value << 8
@@ -71,8 +72,11 @@ class Memory(bytearray):
                         self.screen.sprite_height = 16 if value_list[2] else 8
                         self.screen.sprite_enabled = value_list[1]
                         self.screen.bg_window_enabled = value_list[0]
+                case 0xFF41: # STAT
+                    value &= 0b11111000
+                    value |= self[0xFF41] & 0b111
             if key in {0xFF44}: #Read only values: LY, 
-                print(f"Write attempt to read only memory ({hex(key)})")
+                print(colorama.Fore.YELLOW+f"Write attempt to read only memory ({hex(key)}) at {hex(self.cpu.pc)}"+colorama.Style.RESET_ALL)
                 return
         super().__setitem__(key, value)
     def dma_tick(self, cycles):

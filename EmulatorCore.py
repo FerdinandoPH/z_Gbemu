@@ -9,37 +9,65 @@ def hex(num):
     if num>=0:
         return "0x"+format(num, 'X')
     return "-0x"+format(-num, 'X')
-def emu_init(args):
-    global breakpoints
-    breakpoints={"PC":set(), "OPCODE":set(), "MEM_WATCH":{}, "REG_WATCH":{}}
-    init(args)
 def init(args):
-    global cpu, mem, debug_level, timer, screen, screen_thread, dbg_screen_thread, stop_event
+    #global cpu, mem, debug_level, timer, screen, screen_thread, dbg_screen_thread, stop_event
+    breakpoints={"PC":set(), "OPCODE":set(), "MEM_WATCH":{}, "REG_WATCH":{}}
     mem = Memory(0x10000)
     debug_level = 0
     mem.load_rom(args.rom)
     cpu = Cpu(mem)
+    mem.cpu = cpu
     timer = Timers(mem)
-    screen_thread = None
+    
     dbg_screen_thread = None
     screen = Lcd(mem)
     mem.screen = screen
     stop_event = threading.Event()
-    screen_thread = threading.Thread(target=screen_render, args=(screen,stop_event), daemon=True)
+    ctrl_c_event = threading.Event()
+    reset_event = threading.Event()
+    #screen_thread = threading.Thread(target=screen_render, args=(screen,stop_event), daemon=True)
     dbg_screen_thread = threading.Thread(target=dbg_screen_render, args=(screen,stop_event), daemon=True)
-    screen_thread.start()
+    #screen_thread.start()
     dbg_screen_thread.start()
-    main_loop(args)
-def main_loop(args):
-    global cpu, mem, debug_level, breakpoints, ctrl_c_counter, timer, screen, stop_event, screen_thread, dbg_screen_thread
-    start_time = cpu_start_time = timer_start_time = debug_screen_start_time = breakpoint_start_time = 0
-    cpu_end_time = timer_end_time = debug_screen_end_time = breakpoint_end_time = 0
-    breakpoints_enabled = False
-    while cpu.state != "QUIT":
+    cpu_thread = threading.Thread(target=main_loop, args=(args,breakpoints,cpu,mem,debug_level,timer,screen,stop_event,ctrl_c_event,reset_event), daemon=True)
+    cpu_thread.start()
+    ui_loop(args,screen,dbg_screen_thread,cpu_thread,stop_event, ctrl_c_event,reset_event)
+def ui_loop(args,screen:Lcd,dbg_screen_thread:threading.Thread,cpu_thread:threading.Thread,stop_event:threading.Event,ctrl_c_event:threading.Event, reset_event:threading.Event):
+    def quit(wait_for_cpu=False):
+        stop_event.set()
+        if wait_for_cpu:cpu_thread.join()
+        dbg_screen_thread.join()
+        pygame.display.quit()
+    clock = pygame.time.Clock()
+    while not stop_event.is_set() and not reset_event.is_set():
         try:
+            #frame_start = time.perf_counter()
+            screen.update()
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    quit()
+            clock.tick(59.7)
+            #frame_end = time.perf_counter()
+            #print("Screen: "+str(frame_end-frame_start))
+        except KeyboardInterrupt as e:
+            ctrl_c_event.set()
+    if reset_event.is_set():
+        reset_event.clear()
+        quit(True)
+        init(args)
+def main_loop(args,breakpoints,cpu:Cpu,mem:Memory,debug_level,timer:Timers,screen:Lcd,stop_event:threading.Event,ctrl_c_event:threading.Event, reset_event:threading.Event):
+    try:
+        #global cpu, mem, debug_level, breakpoints, ctrl_c_counter, timer, screen, stop_event, screen_thread, dbg_screen_thread
+        start_time = cpu_start_time = timer_start_time = debug_screen_start_time = breakpoint_start_time = 0
+        cpu_end_time = timer_end_time = debug_screen_end_time = breakpoint_end_time = 0
+        breakpoints_enabled = False
+        while cpu.state != "QUIT" and not stop_event.is_set():
             if cpu.IME and cpu.state != "STOPPED":
                 if cpu.IME:
                     timer.tick(cpu.check_interrupts(debug_level))
+                    if cpu.break_on_interrupt and cpu.in_interrupt:
+                        debug_level=0
+                    cpu.in_interrupt = False
             #breakpoint_start_time = time.perf_counter()
             if breakpoints_enabled:
                 if cpu.pc in breakpoints["PC"]:
@@ -53,13 +81,13 @@ def main_loop(args):
                         debug_level=0
                         print("Memwatch triggered at memory address: "+hex(address),", now the value is: "+hex(mem[address]))
                 for reg in breakpoints["REG_WATCH"]:
-                    if eval(str(cpu.registers[reg])+breakpoints["REG_WATCH"][reg][0]+breakpoints["REG_WATCH"][reg][1]):
+                    if eval((str(cpu.registers[reg]) if reg!="SP" else str(cpu.sp))+breakpoints["REG_WATCH"][reg][0]+breakpoints["REG_WATCH"][reg][1]):
                         debug_level=0
-                        print("Regwatch triggered at register: "+reg,", now the value is: "+hex(cpu.registers[reg]))
+                        print("Regwatch triggered at register: "+reg,", now the value is: "+hex(cpu.registers[reg] if reg!="SP" else cpu.sp))
             #breakpoint_end_time = time.perf_counter()
             if debug_level<=1:
                 end_time = time.perf_counter()
-                print("Times")
+                #print("Times")
                 print("Total: "+str(end_time-start_time))
                 #print("CPU: "+str(cpu_end_time-cpu_start_time))
                 #print("Timer: "+str(timer_end_time-timer_start_time))
@@ -67,7 +95,9 @@ def main_loop(args):
                 #print("Breakpoints: "+str(breakpoint_end_time-breakpoint_start_time))
                 #print("All functions: "+str(breakpoint_start_time - start_time))
                 print(timer)
+                print(screen.ppu_str())
                 print(cpu)
+                
                 #print("Debug menu")
                 if debug_level<1:
                     exit=False
@@ -95,16 +125,14 @@ def main_loop(args):
                             exit=True
                             cpu.state="QUIT"
                             print("Quitting...")
-                            if screen_thread is not None:
-                                stop_event.set()
-                                screen_thread.join()
                         elif answer[0]=='c':
                             exit=True
                             debug_level=2
                         elif answer[0]=='r':
                             exit=True
                             print("Resetting...")
-                            init(args)
+                            reset_event.set()
+                            cpu.state="QUIT"
                         elif answer[0]=='s':
                             exit=True
                         elif answer[0] == 'i':
@@ -152,10 +180,10 @@ def main_loop(args):
                             elif answer[0]=="r":
                                 try:
                                     answer[1]=answer[1].upper()
-                                    if answer[1] not in {"A","B","C","D","E","F","H","L","AF","BC","DE","HL"}: raise ValueError
+                                    if answer[1] not in {"A","B","C","D","E","F","H","L","AF","BC","DE","HL","SP"}: raise ValueError
                                     if answer[2] not in ["<",">","==","<=",">=","!="]: raise ValueError
-                                    if answer[3].lower() == "x": answer[3] = cpu.registers[answer[1]]
-                                    if int(answer[3],16) not in (range(0,0x10000) if answer[1] in {"AF","BC","DE","HL"} else range(0,0x100)): raise ValueError
+                                    if answer[3].lower() == "x": answer[3] = hex(cpu.registers[answer[1]] if answer[1]!="SP" else cpu.sp)[2:]
+                                    if int(answer[3],16) not in (range(0,0x10000) if answer[1] in {"AF","BC","DE","HL", "SP"} else range(0,0x100)): raise ValueError
                                     breakpoints["REG_WATCH"][answer[1]] = (answer[2], "0x"+answer[3])
                                     breakpoints_enabled = True
                                 except ValueError:
@@ -200,7 +228,7 @@ def main_loop(args):
                             elif answer[0]=="r":
                                 try:
                                     answer[1]=answer[1].upper()
-                                    if answer[1] not in {"A","B","C","D","E","F","H","L","AF","BC","DE","HL"}: raise ValueError
+                                    if answer[1] not in {"A","B","C","D","E","F","H","L","AF","BC","DE","HL", "SP"}: raise ValueError
                                     del(breakpoints["REG_WATCH"][answer[1]])
                                     if len(breakpoints["PC"])==0 and len(breakpoints["OPCODE"])==0 and len(breakpoints["MEM_WATCH"])==0 and len(breakpoints["REG_WATCH"])==0:
                                         breakpoints_enabled = False
@@ -221,6 +249,9 @@ def main_loop(args):
                             breakpoints_enabled = False
                         elif answer[0] == 't':
                             print(timer)
+                        elif answer[0] == 'k':
+                            cpu.break_on_interrupt = not cpu.break_on_interrupt
+                            print("Break on interrupt: "+str(cpu.break_on_interrupt))
                         # elif answer[0] == 'g':
                         #     if screen_thread is None or not screen_thread.is_alive():
                         #         screen = Lcd(mem)
@@ -238,32 +269,23 @@ def main_loop(args):
                 #cpu_start_time = time.perf_counter()
                 cpu.tick()
                 #cpu_end_time = time.perf_counter()
-            if cpu.state != "STOPPED":
-                #timer_start_time = time.perf_counter()
-                timer.tick(cpu.cycles)
-                #timer_end_time = time.perf_counter()
+            timer.tick(cpu.cycles)
+            for i in range(cpu.cycles):
+                screen.tick()
             if mem.dma_active:
                 mem.dma_tick(cpu.cycles)
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    quit()
-            
-        except KeyboardInterrupt as e:
-            print("Ctrl+C detected")
-            debug_level=0
-            ctrl_c_counter+=5
-            if ctrl_c_counter>1:
-                print_exc()
-                print("Exiting...")
-                quit()
-def screen_render(screen: Lcd, stop_event):
-    clock = pygame.time.Clock()
-    while not stop_event.is_set():
-        frame_start = time.perf_counter()
-        screen.update()
-        clock.tick(59.7)
-        frame_end = time.perf_counter()
-        #print("Screen: "+str(frame_end-frame_start))
+            if ctrl_c_event.is_set():
+                ctrl_c_event.clear()
+                print("Ctrl+C detected")
+                debug_level=0
+                ctrl_c_counter+=1
+                if ctrl_c_counter>1:
+                    print_exc()
+                    print("Exiting...")
+                    cpu.state = "QUIT"
+    except Exception as e:
+        print_exc()
+    stop_event.set()
 def dbg_screen_render(screen: Lcd, stop_event):
     while not stop_event.is_set():
         frame_start = time.perf_counter()
@@ -271,13 +293,13 @@ def dbg_screen_render(screen: Lcd, stop_event):
         frame_end = time.perf_counter()
         #print("Debug screen: "+str(frame_end-frame_start))
         time.sleep(max(0, 1/5 - (frame_end - frame_start)))
-def quit():
-    global screen_thread, stop_event, screen, dbg_screen_thread, debug_level
-    stop_event.set()
-    screen_thread.join()
-    dbg_screen_thread.join()
-    screen = None
-    dbg_screen_thread = None
-    screen_thread = None
-    cpu.state = "QUIT"
-    pygame.display.quit()
+# def quit():
+#     global screen_thread, stop_event, screen, dbg_screen_thread, debug_level
+#     stop_event.set()
+#     screen_thread.join()
+#     dbg_screen_thread.join()
+#     screen = None
+#     dbg_screen_thread = None
+#     screen_thread = None
+#     cpu.state = "QUIT"
+#     pygame.display.quit()

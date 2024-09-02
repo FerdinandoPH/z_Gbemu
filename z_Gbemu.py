@@ -1,4 +1,4 @@
-import argparse
+import argparse, pygame, colorama
 import os,sys
 from tkinter import filedialog
 from tkinter import Tk
@@ -17,8 +17,11 @@ def parse_arguments():
     parser.add_argument('rom', type=str, help='Path to the ROM file', default=get_rom_tk(), nargs="?")
     return parser.parse_args()
 if __name__ == '__main__':
-    from EmulatorCore import emu_init
+    from EmulatorCore import init
+    pygame.init()
+    colorama.init()
+    os.environ["SDL_VIDEO_WINDOW_POS"] = "500,30"
     os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = "hide"
     args = parse_arguments()
     print(args.rom)
-    emu_init(args)
+    init(args)

@@ -1,7 +1,7 @@
-import pygame, time
+import pygame, time, ctypes
 import numpy as np
 from enum import Enum
-
+TICKS_PER_LINE = 456
 class Mode(Enum):
     HBLANK = 0
     VBLANK = 1
@@ -9,7 +9,6 @@ class Mode(Enum):
     TRANSFER = 3
 class Lcd:
     def __init__(self, mem, scale = 3):
-        pygame.init()
         self.enabled = False
         self.window_map_src = 0x9800
         self.window_enabled = False
@@ -20,9 +19,9 @@ class Lcd:
         self.bg_window_enabled = True
         self.mem = mem
         self.mode = Mode.VBLANK
-        self.ly = 0
+        self.ly = 0x91
         # self.lyc = 0
-        # self.stat = 0
+        self.stat = 0x81
         # self.scx = 0
         # self.scy = 0
         # self.wx = 0
@@ -34,6 +33,9 @@ class Lcd:
         self.gb_colors = [(0x9B, 0xBC, 0x0F),(0x8B, 0xAC, 0x0F),(0x30, 0x62, 0x30),(0x0F, 0x38, 0x0F)]
         self.main_screen = pygame.display.set_mode(((172+144)*scale, (218)*scale))
         pygame.display.set_caption("zGBEmu")
+        window_data = pygame.display.get_wm_info()['window']
+        ctypes.windll.user32.SetForegroundWindow(window_data)
+        ctypes.windll.user32.ShowWindow(window_data, 5)
         self.game_screen = pygame.Surface((160*scale, 144*scale))
         self.debug_screen = pygame.Surface((16*8, 216))
         self.main_screen.fill((255,255,255))
@@ -47,6 +49,9 @@ class Lcd:
     @property
     def stat(self):
         return self.mem[0xFF41]
+    @stat.setter
+    def stat(self, value):
+        self.mem.write_unprotected(0xFF41, value & 0xFF)
     @property
     def ly(self):
         return self.mem[0xFF44]
@@ -68,8 +73,53 @@ class Lcd:
     @property
     def wy(self):
         return self.mem[0xFF4A]
+    @property
+    def mode(self):
+        return Mode(self.stat & 0b11)
+    @mode.setter
+    def mode(self, value):
+        self.stat &= 0b11111100
+        self.stat |= value.value
+
+    def inc_ly(self):
+        self.ly += 1
+        if self.ly == self.lyc:
+            self.stat |= 0b0100
+            if self.stat & 0b01000000:
+                self.mem[0xFF0F] |= 0b10 #IF
+        else:
+            self.stat &= 0b11111011
     def tick(self):
-        pass
+        self.line_ticks += 1
+        match self.mode:
+            case Mode.OAM:
+                if self.line_ticks >= 80: 
+                    self.mode = Mode.TRANSFER
+            case Mode.TRANSFER:
+                if self.line_ticks >= 252: 
+                    self.mode = Mode.HBLANK
+            case Mode.HBLANK:
+                
+                if self.line_ticks >= 456:
+                    self.inc_ly()
+                    if self.ly>= 144:
+                        self.mode = Mode.VBLANK
+                        self.mem[0xFF0F] |= 0b1 #IF
+                        if self.stat & 0b00010000:
+                            self.mem[0xFF0F] |= 0b10 #IF
+                    else:
+                        self.mode = Mode.OAM
+                    self.line_ticks = 0
+                
+            case Mode.VBLANK:
+                if self.line_ticks >= 456:
+                    self.inc_ly()
+                    if self.ly >= 154:
+                        self.ly = 0
+                        self.mode = Mode.OAM
+                    self.line_ticks = 0
+    def ppu_str(self):
+        return f"LY: {self.ly} Mode: {self.mode} line_ticks: {self.line_ticks}"
     def generate_bg_palette(self):
         palette_table = {0: (0x9B, 0xBC, 0x0F), 1: (0x8B, 0xAC, 0x0F), 2: (0x30, 0x62, 0x30), 3: (0x0F, 0x38, 0x0F)}
         bgp = self.mem[0xFF47]
