@@ -123,7 +123,7 @@ class Cpu:
         old_instruction=self.instruction
         self.instruction=self.mem[self.pc]
         self.get_name=True
-        ret_value = "State: "+self.state+"\nRegisters: "+str([f"{i}:{hex(self.registers[i])} " for i in self.registers])+"\nFlags:"+str([f"{i}:{self.flags[i]}" for i in self.flags])+", IME: "+str(self.IME)+"\nPC: "+hex(self.pc)+"  SP: "+hex(self.sp)+"\nInstruction: (" + hex(self.instruction) + ") "
+        ret_value = "State: "+self.state+"\nRegisters: "+str([f"{i}:{hex(self.registers[i])} " for i in self.registers])+"\nFlags:"+str([f"{i}:{self.flags[i]}" for i in self.flags])+", IME: "+str(self.IME)+"\nPC: "+hex(self.pc)+"  SP: "+hex(self.sp)+"\nInstruction: "+("(" + hex(self.instruction) + ") " if self.state == "RUNNING" else "")
         #ret_value = f"State: {self.state}\nRegisters: [{','.join([f'{i}:{hex(self.registers[i])} ' for i in self.registers])}]\nFlags: [{','.join([f'{i}:{self.flags[i]}' for i in self.flags])}], IME: {self.IME}\nPC: {hex(self.pc)}  SP: {hex(self.sp)}\nInstruction: "# + hex(self.instruction) + " "
         old_pc = self.pc
         if self.state == "RUNNING": ret_value+= self.tick()
@@ -143,8 +143,8 @@ class Cpu:
                 self.IME = False
                 self.mem[0xFF0F] &= ~(1<<i)
                 self.sp = (self.sp - 2) % 0x10000
-                self.mem[self.sp] = self.pc >> 8
-                self.mem[self.sp+1] = self.pc & 0xFF
+                self.mem[self.sp+1] = self.pc >> 8
+                self.mem[self.sp] = self.pc & 0xFF
                 if self.state[-1] != "X":
                     self.pc = self.int_addresses[i]
                 self.state = "RUNNING"
@@ -279,7 +279,9 @@ class Cpu:
         Disable/Enable interrupts
         '''
         if self.get_name: return "DI" if self.instruction == 0xF3 else "EI"
-        if self.instruction == 0xF3: self.IME = False
+        if self.instruction == 0xF3: 
+            self.IME = False
+            self.IME_pending = 0
         else: self.IME_pending = 2
     #endregion
     #region LD_8
@@ -445,6 +447,8 @@ class Cpu:
                 new_pc = self.registers["HL"]
             elif name == "JR":
                 new_pc = (self.pc + new_pc) % 0x10000
+            if new_pc == 0x5c22:
+                print(hex(self.pc),"->",hex(new_pc))
             self.pc = new_pc
             if self.flag_nomenclature[self.pc_change_table["cond"][self.instruction]] != "True":
                 if name == "CALL": self.cycles += 2

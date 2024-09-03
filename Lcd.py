@@ -48,31 +48,31 @@ class Lcd:
         #time.sleep(3)
     @property
     def stat(self):
-        return self.mem[0xFF41]
+        return self.mem.read_unprotected(0xFF41)
     @stat.setter
     def stat(self, value):
         self.mem.write_unprotected(0xFF41, value & 0xFF)
     @property
     def ly(self):
-        return self.mem[0xFF44]
+        return self.mem.read_unprotected(0xFF44)
     @ly.setter
     def ly(self, value):
         self.mem.write_unprotected(0xFF44, value & 0xFF)
     @property
     def lyc(self):
-        return self.mem[0xFF45]
+        return self.mem.read_unprotected(0xFF45)
     @property
     def scx(self):
-        return self.mem[0xFF43]
+        return self.mem.read_unprotected(0xFF43)
     @property
     def scy(self):
-        return self.mem[0xFF42]
+        return self.mem.read_unprotected(0xFF42)
     @property
     def wx(self):
-        return self.mem[0xFF4B]
+        return self.mem.read_unprotected(0xFF4B)
     @property
     def wy(self):
-        return self.mem[0xFF4A]
+        return self.mem.read_unprotected(0xFF4A)
     @property
     def mode(self):
         return Mode(self.stat & 0b11)
@@ -86,7 +86,7 @@ class Lcd:
         if self.ly == self.lyc:
             self.stat |= 0b0100
             if self.stat & 0b01000000:
-                self.mem[0xFF0F] |= 0b10 #IF
+                self.mem.write_unprotected(0xFF0F,self.mem.read_unprotected(0xFF0F) | 0b10)  #[0xFF0F] |= 0b10 #IF
         else:
             self.stat &= 0b11111011
     def tick(self):
@@ -104,9 +104,11 @@ class Lcd:
                     self.inc_ly()
                     if self.ly>= 144:
                         self.mode = Mode.VBLANK
-                        self.mem[0xFF0F] |= 0b1 #IF
+                        #self.mem[0xFF0F] |= 0b1 #IF
+                        self.mem.write_unprotected(0xFF0F,self.mem.read_unprotected(0xFF0F) | 0b1)
                         if self.stat & 0b00010000:
-                            self.mem[0xFF0F] |= 0b10 #IF
+                            #self.mem[0xFF0F] |= 0b10 #IF
+                            self.mem.write_unprotected(0xFF0F,self.mem.read_unprotected(0xFF0F) | 0b10)
                     else:
                         self.mode = Mode.OAM
                     self.line_ticks = 0
@@ -122,13 +124,15 @@ class Lcd:
         return f"LY: {self.ly} Mode: {self.mode} line_ticks: {self.line_ticks}"
     def generate_bg_palette(self):
         palette_table = {0: (0x9B, 0xBC, 0x0F), 1: (0x8B, 0xAC, 0x0F), 2: (0x30, 0x62, 0x30), 3: (0x0F, 0x38, 0x0F)}
-        bgp = self.mem[0xFF47]
+        #bgp = self.mem[0xFF47]
+        bgp = self.mem.read_unprotected(0xFF47)
         bg_palette = [palette_table[(bgp & (0b11 << i*2)) >> i*2] for i in range(4)]
         return bg_palette
     def generate_obj_palette(self, number):
         if number not in range(0,2): number = 0
         palette_table = {0: (0, 0, 0, 0), 1: (0x8B, 0xAC, 0x0F), 2: (0x30, 0x62, 0x30), 3: (0x0F, 0x38, 0x0F)}
-        obp = self.mem[0xFF48+number]
+        #obp = self.mem[0xFF48+number]
+        obp = self.mem.read_unprotected(0xFF48+number)
         obj_palette = [palette_table[(obp & (0b11 << i*2)) >> i*2] for i in range(4)]
         return obj_palette
     def generate_tiles(self, src = 0x8000, dest = 0x9800):
@@ -138,8 +142,10 @@ class Lcd:
             tile = np.arange(64)
             for y in range(8):
                 addr_y = addr + y*2
-                lo_byte = self.mem[addr_y]
-                hi_byte = self.mem[addr_y+1]
+                #lo_byte = self.mem[addr_y]
+                #hi_byte = self.mem[addr_y+1]
+                lo_byte = self.mem.read_unprotected(addr_y)
+                hi_byte = self.mem.read_unprotected(addr_y+1)
                 for x in range(7,-1,-1):
                     mask = 1 << x
                     lo =int(bool(lo_byte & mask))
@@ -206,8 +212,10 @@ class Lcd:
             dbg_tile = pygame.Surface((8,8), pygame.SRCALPHA)
             for y in range(8):
                 addr_y = addr + y*2
-                lo_byte = self.mem[addr_y]
-                hi_byte = self.mem[addr_y+1]
+                # lo_byte = self.mem[addr_y]
+                # hi_byte = self.mem[addr_y+1]
+                lo_byte = self.mem.read_unprotected(addr_y)
+                hi_byte = self.mem.read_unprotected(addr_y+1)
                 for x in range(7,-1,-1):
                     mask = 1 << x
                     lo =int(bool(lo_byte & mask))

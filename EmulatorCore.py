@@ -67,19 +67,21 @@ def main_loop(args,breakpoints,cpu:Cpu,mem:Memory,debug_level,timer:Timers,scree
                     timer.tick(cpu.check_interrupts(debug_level))
                     if cpu.break_on_interrupt and cpu.in_interrupt:
                         debug_level=0
+                        end_int = time.perf_counter()
+                        print("The interrupt took ",end_int-start_int)
                     cpu.in_interrupt = False
             #breakpoint_start_time = time.perf_counter()
             if breakpoints_enabled:
                 if cpu.pc in breakpoints["PC"]:
                     debug_level=0
                     print("Breakpoint hit at PC: "+hex(cpu.pc))
-                if mem[cpu.pc] in breakpoints["OPCODE"]:
+                if mem.read_unprotected(cpu.pc) in breakpoints["OPCODE"]:
                     debug_level=0
-                    print("Breakpoint hit at opcode: "+hex(mem[cpu.pc]))
+                    print("Breakpoint hit at opcode: "+hex(mem.read_unprotected(cpu.pc)))
                 for address in breakpoints["MEM_WATCH"]:
-                    if eval(str(mem[address])+breakpoints["MEM_WATCH"][address][0]+breakpoints["MEM_WATCH"][address][1]):
+                    if eval(str(mem.read_unprotected(int(address,16)))+breakpoints["MEM_WATCH"][address][0]+breakpoints["MEM_WATCH"][address][1]):
                         debug_level=0
-                        print("Memwatch triggered at memory address: "+hex(address),", now the value is: "+hex(mem[address]))
+                        print("Memwatch triggered at memory address: "+address,", now the value is: "+hex(mem.read_unprotected(int(address,16))))
                 for reg in breakpoints["REG_WATCH"]:
                     if eval((str(cpu.registers[reg]) if reg!="SP" else str(cpu.sp))+breakpoints["REG_WATCH"][reg][0]+breakpoints["REG_WATCH"][reg][1]):
                         debug_level=0
@@ -96,6 +98,7 @@ def main_loop(args,breakpoints,cpu:Cpu,mem:Memory,debug_level,timer:Timers,scree
                 #print("All functions: "+str(breakpoint_start_time - start_time))
                 print(timer)
                 print(screen.ppu_str())
+                print(mem.str_info(),end="")
                 print(cpu)
                 
                 #print("Debug menu")
@@ -128,6 +131,8 @@ def main_loop(args,breakpoints,cpu:Cpu,mem:Memory,debug_level,timer:Timers,scree
                         elif answer[0]=='c':
                             exit=True
                             debug_level=2
+                            if cpu.break_on_interrupt:
+                                start_int = time.perf_counter()
                         elif answer[0]=='r':
                             exit=True
                             print("Resetting...")
@@ -170,7 +175,7 @@ def main_loop(args,breakpoints,cpu:Cpu,mem:Memory,debug_level,timer:Timers,scree
                                 try:
                                     if int(answer[1],16) not in range(0,0x10000): raise ValueError
                                     if answer[2] not in ["<",">","==","<=",">=","!="]: raise ValueError
-                                    if answer[3].lower() == "x": answer[3] = mem[answer[1]]
+                                    if answer[3].lower() == "x": answer[3] = hex(mem.read_unprotected(int(answer[1],16)))[2:]
                                     if int(answer[3],16) not in range(0,256): raise ValueError
                                     breakpoints["MEM_WATCH"][answer[1]] = (answer[2], "0x"+answer[3])
                                     breakpoints_enabled = True

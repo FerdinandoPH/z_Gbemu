@@ -13,13 +13,15 @@ class Timers:
         self.needed_cycles = {0: 256, 1: 4, 2: 16, 3: 64}
     @property
     def div(self):
-        return self.mem[0xFF04]
+        #return self.mem[0xFF04]
+        return self.mem.read_unprotected(0xFF04)
     @div.setter
     def div(self, value):
         self.mem.write_unprotected(0xFF04, value & 0xFF)
     @property
     def tma(self):
-        return self.mem[0xFF06]
+        #return self.mem[0xFF06]
+        return self.mem.read_unprotected(0xFF06)
 
     @tma.setter
     def tma(self, value):
@@ -27,20 +29,20 @@ class Timers:
 
     @property
     def tima(self):
-        return self.mem[0xFF05]
+        #return self.mem[0xFF05]
+        return self.mem.read_unprotected(0xFF05)
 
     @tima.setter
     def tima(self, value):
         self.mem.write_unprotected(0xFF05, value & 0xFF)
     @property
     def tac(self):
-        return {"enabled": (self.mem[0xFF07] & 0b100)>>2, "clock": self.mem[0xFF07] & 0b11}
+        #return {"enabled": (self.mem[0xFF07] & 0b100)>>2, "clock": self.mem[0xFF07] & 0b11}
+        return {"enabled": (self.mem.read_unprotected(0xFF07) & 0b100)>>2, "clock": self.mem.read_unprotected(0xFF07) & 0b11}
 
     @tac.setter
     def tac(self, value):
-        self.mem.protected = False
-        self.mem[0xFF07] = value & 0xFF
-        self.mem.protected = True
+        self.mem.write_unprotected(0xFF07, value & 0xFF)
     def tick(self, cycles):
         if self.mem.div_changed:
             self.mem.div_changed = False
@@ -52,7 +54,8 @@ class Timers:
                 add_to_tima = self.sub_tima // needed_cycles
                 if self.tima + add_to_tima  > 0xFF:
                     self.tima = self.tma
-                    self.mem[0xFF0F] |= 0b100
+                    #self.mem[0xFF0F] |= 0b100
+                    self.mem.write_unprotected(0xFF0F, self.mem.read_unprotected(0xFF0F) | 0b100)
                 else:
                     self.tima += add_to_tima
                 self.sub_tima %= needed_cycles
