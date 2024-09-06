@@ -14,7 +14,8 @@ class Cpu:
         self.get_name=False
         self.mem= memory
         self.state="RUNNING"
-        self.cycles = 0 #unused for now
+        self.cycles = 0
+        self.int_cycles = 0
         self.in_prefix = False
         self.halt_bug = False
         self.in_interrupt = False
@@ -95,13 +96,14 @@ class Cpu:
         self.swap_table = {0x30: "B", 0x31: "C", 0x32: "D", 0x33: "E", 0x34: "H", 0x35: "L", 0x36: "[HL]", 0x37: "A"}
         #endregion
         #region bit_dict
-        self.bit_table = {"src":{**{i:"B" for i in set(range(0x40, 0x80, 0x8))}, **{i:"C" for i in set(range(0x41, 0x81, 0x8))}, **{i:"D" for i in set(range(0x42, 0x82, 0x8))}, **{i:"E" for i in set(range(0x43, 0x83, 0x8))}, **{i:"H" for i in set(range(0x44, 0x84, 0x8))}, **{i:"L" for i in set(range(0x45, 0x85, 0x8))}, **{i:"[HL]" for i in set(range(0x46, 0x86, 0x8))}}, "bit":{**{i:0 for i in range(0x40, 0x48)}, **{i:1 for i in range(0x48, 0x50)}, **{i:2 for i in range(0x50, 0x58)}, **{i:3 for i in range(0x58, 0x60)}, **{i:4 for i in range(0x60, 0x68)}, **{i:5 for i in range(0x68, 0x70)}, **{i:6 for i in range(0x70, 0x78)}, **{i:7 for i in range(0x78, 0x80)}}}
+        self.bit_table = {"src":{**{i:"A" for i in set(range(0x47, 0x87, 0x8))},**{i:"B" for i in set(range(0x40, 0x80, 0x8))}, **{i:"C" for i in set(range(0x41, 0x81, 0x8))}, **{i:"D" for i in set(range(0x42, 0x82, 0x8))}, **{i:"E" for i in set(range(0x43, 0x83, 0x8))}, **{i:"H" for i in set(range(0x44, 0x84, 0x8))}, **{i:"L" for i in set(range(0x45, 0x85, 0x8))}, **{i:"[HL]" for i in set(range(0x46, 0x86, 0x8))}}, "bit":{**{i:0 for i in range(0x40, 0x48)}, **{i:1 for i in range(0x48, 0x50)}, **{i:2 for i in range(0x50, 0x58)}, **{i:3 for i in range(0x58, 0x60)}, **{i:4 for i in range(0x60, 0x68)}, **{i:5 for i in range(0x68, 0x70)}, **{i:6 for i in range(0x70, 0x78)}, **{i:7 for i in range(0x78, 0x80)}}}
         #endregion
         #region res_set_dict
         self.res_set_table = {"reg":{**{i:"B" for i in set(range(0x80, 0x100, 0x8))}, **{i:"C" for i in set(range(0x81, 0x101, 0x8))}, **{i:"D" for i in set(range(0x82, 0x102, 0x8))}, **{i:"E" for i in set(range(0x83, 0x103, 0x8))}, **{i:"H" for i in set(range(0x84, 0x104, 0x8))}, **{i:"L" for i in set(range(0x85, 0x105, 0x8))}, **{i:"[HL]" for i in set(range(0x86, 0x106, 0x8))}, **{i:"A" for i in set(range(0x87, 0x107, 0x8))}}, "bit":{**{i:0 for i in set(range(0x80, 0x88)) | set(range(0xC0, 0xC8))}, **{i:1 for i in set(range(0x88, 0x90)) | set(range(0xC8, 0xD0))}, **{i:2 for i in set(range(0x90, 0x98)) | set(range(0xD0, 0xD8))}, **{i:3 for i in set(range(0x98, 0xA0)) | set(range(0xD8, 0xE0))}, **{i:4 for i in set(range(0xA0, 0xA8)) | set(range(0xE0, 0xE8))}, **{i:5 for i in set(range(0xA8, 0xB0)) | set(range(0xE8, 0xF0))}, **{i:6 for i in set(range(0xB0, 0xB8)) | set(range(0xF0, 0xF8))}, **{i:7 for i in set(range(0xB8, 0xC0)) | set(range(0xF8, 0x100))}}, "name":{**{i:"RES" for i in set(range(0x80, 0xC0))}, **{i:"SET" for i in set(range(0xC0, 0x100))}}}
     def tick(self):
         if not self.get_name:
-            self.cycles = 0
+            self.cycles = self.int_cycles
+            self.int_cycles = 0
         self.instruction=self.mem[self.pc]
         self.pc = (self.pc + 1) % 0x10000 # For some reason, the PC is incremented before the instruction is executed. This is important for relative jumps
         if self.halt_bug:
@@ -134,7 +136,7 @@ class Cpu:
     def check_interrupts(self, debug_level):
         ie_flag = self.mem[0xFFFF]
         if_flag = self.mem[0xFF0F]
-        if ie_flag == 0 or if_flag == 0: return 0
+        if ie_flag == 0 or if_flag == 0: self.int_cycles = 0
         for i in range(4, -1, -1):
             if (ie_flag & (1<<i)) and (if_flag & (1<<i)):
                 if self.break_on_interrupt:
@@ -148,8 +150,8 @@ class Cpu:
                 if self.state[-1] != "X":
                     self.pc = self.int_addresses[i]
                 self.state = "RUNNING"
-                return 5
-        return 0
+                self.int_cycles = 5
+        self.int_cycles = 0
 
     #region opcodes
     #region misc
@@ -268,7 +270,7 @@ class Cpu:
         self.state="QUIT"
     def unimplemented_opcode(self):
         if self.get_name: return "unimpl ("+hex(self.instruction)+")"
-        print(f"Huh? {hex(self.instruction)} should be implemented. Something went wrong")
+        print(f"Huh? {hex(self.instruction)} (prefix = {self.in_prefix}) should be implemented. Something went wrong at {hex(self.pc)}")
         self.state = "QUIT"
         #for now, let's skip to the next instruction
     def di_ei(self):
@@ -506,7 +508,7 @@ class Cpu:
             self.pc = (self.pc + 1) % 0x10000
         name = self.add_sub_table["name"][self.instruction]
         if self.get_name: return name+" A, "+(("$"+hex(src)) if type(src)==int else "[HL]" if src == "HL" else src)
-        if src == "HL": src = self.mem[self.registers["HL"]]
+        if src == "[HL]": src = self.mem[self.registers["HL"]]
         elif type(src)!=int: src = self.registers[src]
         if name[2]=="C": src += self.flags["C"]
         if name[0] == "S": src = -src
@@ -590,7 +592,7 @@ class Cpu:
         if self.get_name: return "SWAP "+reg
         if reg == "[HL]": value = self.mem[self.registers["HL"]]
         else: value = self.registers[reg]
-        value = (value >> 4) | (value << 4)
+        value = (value >> 4) | ((value&0xF) << 4)
         self.flags["Z"] = int(value == 0)
         self.flags["N"] = 0
         self.flags["H"] = 0

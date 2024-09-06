@@ -7,9 +7,8 @@ SECTION "Header", ROM0[$100]
     ds $150 - @, 0 ; Make room for the header
 
 EntryPoint:
-    ld h, $FF
-    ld l, $E1
-    ld [hl], $F0
-    ld a, $10
-    add a, [hl]
-    jr c, EntryPoint
+    ld a, $0
+    bit 6, a
+    ld a, $40
+    bit 6, a
+    jr nz, EntryPoint

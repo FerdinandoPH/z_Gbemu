@@ -34,43 +34,42 @@ class Memory(bytearray):
         #endregion
     def __getitem__(self, key, protected = True):
         if protected:
-            if self.dma_active and key not in range(0xFF80,0xFFFF): 
+            if self.dma_active and key not in range(0xFF80,0x10000): 
                 print(colorama.Fore.YELLOW+f"DMA active, read attempt to memory ({hex(key)}) at {hex(self.cpu.pc)}"+colorama.Style.RESET_ALL)
                 return 0xFF
         return super().__getitem__(key)
     def __setitem__(self, key, value, protected = True):
         if protected:
-            if key in range(0,0x8000): 
-                print(colorama.Fore.YELLOW+f"ROM write attempt ({hex(key)}) at {hex(self.cpu.pc)}"+colorama.Style.RESET_ALL)
-                return
             if self.dma_active and key not in range(0xFF80,0xFFFF): 
                 print(colorama.Fore.YELLOW+f"DMA active, write attempt to memory ({hex(key)}) at {hex(self.cpu.pc)}"+colorama.Style.RESET_ALL)
                 return
-            match key:
-                case 0xFF00: value = (0x3 << 6) | ((value & 0x30)>>4) | (self[0xFF00] & 0x0F) # Joypad
-                case 0xFF04:  # DIV
-                    value = 0
-                    self.div_changed=True
-                case 0xFF05: self.tima_changed=True # TIMA
-                case 0xFF46: # OAM DMA
-                    if value not in range(0,0xE0):
-                        print(colorama.Fore.YELLOW+f"Invalid OAM DMA source ({hex(value)}) at {hex(self.cpu.pc)}"+colorama.Style.RESET_ALL)
-                        return
-                    self.dma_active = True
-                case 0xFF40: # LCDC
-                    if self.screen is not None:
-                        value_list = [bool(int(i)) for i in format(value, '08b')]
-                        self.screen.enabled = value_list[7]
-                        self.screen.window_map_src = 0x9C00 if value_list[6] else 0x9800
-                        self.screen.window_enabled = value_list[5]
-                        self.screen.tile_src = 0x8000 if value_list[4] else 0x8800
-                        self.screen.bg_map_src = 0x9C00 if value_list[3] else 0x9800
-                        self.screen.sprite_height = 16 if value_list[2] else 8
-                        self.screen.sprite_enabled = value_list[1]
-                        self.screen.bg_window_enabled = value_list[0]
-                case 0xFF41: # STAT
-                    value &= 0b11111000
-                    value |= self[0xFF41] & 0b111
+            if key in range(0,0x8000): 
+                print(colorama.Fore.YELLOW+f"ROM write attempt ({hex(key)}) at {hex(self.cpu.pc)}"+colorama.Style.RESET_ALL)
+                return
+            elif key == 0xFF00: value = (0x3 << 6) | ((value & 0x30)>>4) | (self[0xFF00] & 0x0F) # Joypad
+            elif key == 0xFF04:  # DIV
+                value = 0
+                self.div_changed=True
+            elif key == 0xFF05: self.tima_changed=True # TIMA
+            elif key == 0xFF46: # OAM DMA
+                if value not in range(0,0xE0):
+                    print(colorama.Fore.YELLOW+f"Invalid OAM DMA source ({hex(value)}) at {hex(self.cpu.pc)}"+colorama.Style.RESET_ALL)
+                    return
+                self.dma_active = True
+            elif key == 0xFF40: # LCDC
+                if self.screen is not None:
+                    value_list = [bool(int(i)) for i in format(value, '08b')]
+                    self.screen.enabled = value_list[7]
+                    self.screen.window_map_src = 0x9C00 if value_list[6] else 0x9800
+                    self.screen.window_enabled = value_list[5]
+                    self.screen.tile_src = 0x8000 if value_list[4] else 0x8800
+                    self.screen.bg_map_src = 0x9C00 if value_list[3] else 0x9800
+                    self.screen.sprite_height = 16 if value_list[2] else 8
+                    self.screen.sprite_enabled = value_list[1]
+                    self.screen.bg_window_enabled = value_list[0]
+            elif key == 0xFF41: # STAT
+                value &= 0b11111000
+                value |= self[0xFF41] & 0b111
             if key in {0xFF44}: #Read only values: LY, 
                 print(colorama.Fore.YELLOW+f"Write attempt to read only memory ({hex(key)}) at {hex(self.cpu.pc)}"+colorama.Style.RESET_ALL)
                 return
@@ -102,5 +101,9 @@ class Memory(bytearray):
             f.write(self)
         #os.system(os.path.dirname(os.path.realpath(__file__))+"\\gb_dump.hexd")
         subprocess.Popen([os.path.dirname(os.path.realpath(__file__))+"\\gb_dump.hexd"], shell=True)
+    def load_state(self):
+        with open("gb_dump.hexd", "rb") as f:
+            for i, byte in enumerate(f.read()):
+                self.write_unprotected(i,byte)
     def str_info(self):
         return "" if not self.dma_active else f"DMA Active ({self.dma_progress}/159)\n"
