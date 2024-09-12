@@ -1,4 +1,4 @@
-from Cpuold import Cpu
+from Cpu import Cpu
 from Memory import Memory
 from Timers import Timers
 from Lcd import Lcd
