@@ -4,7 +4,7 @@ After working on this project for a month, I've decided to archive it. I realize
 
 While there are things I could try to improve this situation (like using Cython), I've decided to port my progress into C, since, due to personal circumstances, I need to improve my C capabilities.
 
-To anyone trying to make a Game Boy emulator who stumbles onto this project, I recommend you to either choose another language or start using Cython from the very beginning.
+To anyone trying to make a python Game Boy emulator who stumbles onto this project, I recommend you to either choose another language or start using Cython from the very beginning.
 
 That's all, folks!
 
